@@ -26,3 +26,7 @@ Data parts retain the original workload ownership and report TTL annotations. Th
 5. Build, scan and validate the exact operator image, then deploy a controlled canary and prove oversized-write errors cease while totals remain exact. Keep full archive checksums and rollback evidence.
 
 Oversized individual findings or oversized manifest metadata fail explicitly. Exposed-secret/SBOM report partitioning is outside this implementation and must not be claimed fixed by it.
+
+## Annotation size validation
+
+The partitioner validates the Kubernetes aggregate annotation byte limit on the original report, each data part and the final manifest before returning objects to the writer. Object-size budgets alone do not satisfy this independent API constraint. Invalid sets return an error with no objects; tests cover ordinary reports, metadata growth in parts, manifest reference growth, and zero writes for namespace and cluster report writers. Existing annotations added during API updates still remain subject to API admission. This does not complete archive assembly, obsolete-part cleanup, or live API/TTL acceptance gates.
