@@ -16,6 +16,7 @@ import (
 	"github.com/aquasecurity/trivy-operator/pkg/kube"
 	"github.com/aquasecurity/trivy-operator/pkg/operator/etc"
 	"github.com/aquasecurity/trivy-operator/pkg/trivyoperator"
+	"github.com/aquasecurity/trivy-operator/pkg/vulnerabilityreport"
 )
 
 const (
@@ -593,7 +594,9 @@ func (c ResourcesMetricsCollector) collectVulnerabilityReports(ctx context.Conte
 			c.Logger.Error(err, "failed to list vulnerabilityreports from API", "namespace", n)
 			continue
 		}
-		for _, r := range reports.Items {
+		complete, incomplete := vulnerabilityreport.CompleteReports(reports.Items)
+		metrics <- prometheus.MustNewConstMetric(incompleteReportSetsDesc, prometheus.GaugeValue, float64(incomplete), n)
+		for _, r := range complete {
 			labelValues[0] = r.Namespace
 			labelValues[1] = r.Name
 			labelValues[2] = r.Labels[trivyoperator.LabelResourceKind]
@@ -624,7 +627,8 @@ func (c ResourcesMetricsCollector) collectVulnerabilityIdReports(ctx context.Con
 			c.Logger.Error(err, "failed to list vulnerabilityreports from API", "namespace", n)
 			continue
 		}
-		for _, r := range reports.Items {
+		complete, _ := vulnerabilityreport.CompleteReports(reports.Items)
+		for _, r := range complete {
 			vulnLabelValues[0] = r.Namespace
 			vulnLabelValues[1] = r.Name
 			vulnLabelValues[2] = r.Labels[trivyoperator.LabelResourceKind]
@@ -967,7 +971,8 @@ func (c ResourcesMetricsCollector) collectImageReports(ctx context.Context, metr
 			c.Logger.Error(err, "failed to list vulnerabilityreports from API", "namespace", n)
 			continue
 		}
-		for _, r := range reports.Items {
+		complete, _ := vulnerabilityreport.CompleteReports(reports.Items)
+		for _, r := range complete {
 			if !c.Config.MetricsImageInfo {
 				continue
 			}
@@ -1060,7 +1065,10 @@ func (c *ResourcesMetricsCollector) populateInfraAssessmentValues(labelValues []
 	}
 }
 
+var incompleteReportSetsDesc = prometheus.NewDesc("trivy_vulnerability_report_incomplete_sets", "Partitioned vulnerability report sets missing a valid complete generation", []string{"namespace"}, nil)
+
 func (c ResourcesMetricsCollector) Describe(descs chan<- *prometheus.Desc) {
+	descs <- incompleteReportSetsDesc
 	descs <- c.imageVulnDesc
 	descs <- c.vulnIdDesc
 	descs <- c.configAuditDesc
