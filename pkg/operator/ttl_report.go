@@ -8,6 +8,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -46,7 +47,7 @@ func (r *TTLReportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		ttlResources = append(ttlResources, kube.Resource{ForObject: &v1alpha1.ConfigAuditReport{}})
 	}
 	if r.Config.VulnerabilityScannerEnabled {
-		ttlResources = append(ttlResources, kube.Resource{ForObject: &v1alpha1.VulnerabilityReport{}})
+		ttlResources = append(ttlResources, kube.Resource{ForObject: &v1alpha1.VulnerabilityReport{}}, kube.Resource{ForObject: &v1alpha1.ClusterVulnerabilityReport{}})
 	}
 	if r.Config.ExposedSecretScannerEnabled {
 		ttlResources = append(ttlResources, kube.Resource{ForObject: &v1alpha1.ExposedSecretReport{}})
@@ -104,7 +105,8 @@ func (r *TTLReportReconciler) DeleteReportIfExpired(ctx context.Context, namespa
 
 	if ttlExpired && r.applicableForDeletion(ctx, reportType, ttlReportAnnotationStr) {
 		log.V(1).Info("Removing report with expired TTL or Historical")
-		err := r.Client.Delete(ctx, reportType, &client.DeleteOptions{})
+		uid, version := reportType.GetUID(), reportType.GetResourceVersion()
+		err := r.Client.Delete(ctx, reportType, &client.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &uid, ResourceVersion: &version}})
 		if err != nil && !errors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
@@ -125,6 +127,8 @@ func (r *TTLReportReconciler) applicableForDeletion(ctx context.Context, report 
 		switch report.(type) {
 		case *v1alpha1.VulnerabilityReport:
 			reportKind = "VulnerabilityReport"
+		case *v1alpha1.ClusterVulnerabilityReport:
+			reportKind = "ClusterVulnerabilityReport"
 		case *v1alpha1.ExposedSecretReport:
 			reportKind = "ExposedSecretReport"
 		case *v1alpha1.ClusterSbomReport:
@@ -137,7 +141,7 @@ func (r *TTLReportReconciler) applicableForDeletion(ctx context.Context, report 
 			reportKind = "RbacAssessmentReport"
 		}
 	}
-	if reportKind == "VulnerabilityReport" || reportKind == "ExposedSecretReport" || reportKind == "ClusterSbomReport" {
+	if reportKind == "VulnerabilityReport" || reportKind == "ClusterVulnerabilityReport" || reportKind == "ExposedSecretReport" || reportKind == "ClusterSbomReport" {
 		return true
 	}
 	if ttlReportAnnotationStr == time.Duration(0).String() { // check if it marked as historical report

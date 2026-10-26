@@ -1,6 +1,8 @@
 package operator_test
 
 import (
+	"context"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"testing"
 	"time"
 
@@ -130,6 +132,47 @@ func TestRegenerateReportIfExpired(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+		})
+	}
+}
+
+type guardedTTLClient struct {
+	client.Client
+	t        *testing.T
+	conflict bool
+}
+
+func (c *guardedTTLClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
+	d := &client.DeleteOptions{}
+	for _, o := range opts {
+		o.ApplyToDelete(d)
+	}
+	require.NotNil(c.t, d.Preconditions)
+	require.NotNil(c.t, d.Preconditions.UID)
+	require.NotNil(c.t, d.Preconditions.ResourceVersion)
+	require.Equal(c.t, obj.GetUID(), *d.Preconditions.UID)
+	require.Equal(c.t, obj.GetResourceVersion(), *d.Preconditions.ResourceVersion)
+	if c.conflict {
+		return apierrors.NewConflict(schema.GroupResource{Group: "aquasecurity.github.io", Resource: "clustervulnerabilityreports"}, obj.GetName(), nil)
+	}
+	return c.Client.Delete(ctx, obj, opts...)
+}
+func TestClusterPartitionTTLAndConcurrentChange(t *testing.T) {
+	for _, conflict := range []bool{false, true} {
+		t.Run(map[bool]string{false: "expires", true: "concurrent change preserved"}[conflict], func(t *testing.T) {
+			report := &v1alpha1.ClusterVulnerabilityReport{ObjectMeta: metav1.ObjectMeta{Name: "partition", UID: types.UID("original"), CreationTimestamp: metav1.NewTime(time.Now().Add(-2 * time.Hour)), Annotations: map[string]string{v1alpha1.TTLReportAnnotation: "1h"}}}
+			c := &guardedTTLClient{Client: fake.NewClientBuilder().WithScheme(trivyoperator.NewScheme()).WithObjects(report).Build(), t: t, conflict: conflict}
+			r := operator.TTLReportReconciler{Logger: log.Log, Client: c, Clock: ext.NewSystemClock()}
+			_, err := r.DeleteReportIfExpired(t.Context(), types.NamespacedName{Name: report.Name}, &v1alpha1.ClusterVulnerabilityReport{})
+			var result v1alpha1.ClusterVulnerabilityReport
+			getErr := c.Get(t.Context(), types.NamespacedName{Name: report.Name}, &result)
+			if conflict {
+				require.True(t, apierrors.IsConflict(err))
+				require.NoError(t, getErr)
+			} else {
+				require.NoError(t, err)
+				require.True(t, apierrors.IsNotFound(getErr))
+			}
 		})
 	}
 }
