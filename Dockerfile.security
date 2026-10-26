@@ -4,7 +4,8 @@ ENV CGO_ENABLED=0 GOEXPERIMENT=jsonv2 GOTOOLCHAIN=local
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go test ./pkg/plugins/trivy/... ./pkg/vulnerabilityreport/...
+RUN go test ./pkg/plugins/trivy/... ./pkg/vulnerabilityreport/... ./pkg/metrics
+RUN go test ./pkg/operator -run 'TestClusterPartitionTTLAndConcurrentChange|TestRegenerateReportIfExpired' -count=1
 ARG TARGETOS TARGETARCH SOURCE_COMMIT
 RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X main.version=0.36.0-security.1 -X main.commit=${SOURCE_COMMIT}" -o /out/trivy-operator ./cmd/trivy-operator
 
