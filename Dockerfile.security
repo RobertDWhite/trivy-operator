@@ -1,0 +1,15 @@
+FROM --platform=$BUILDPLATFORM golang:1.27.3@sha256:f20d83a83e18dbd2a4714b8ffd4b30b287b6243962dd75608e86abcc63ba4efc AS build
+WORKDIR /src
+ENV CGO_ENABLED=0 GOEXPERIMENT=jsonv2 GOTOOLCHAIN=local
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go test ./pkg/plugins/trivy/... ./pkg/vulnerabilityreport/...
+ARG TARGETOS TARGETARCH SOURCE_COMMIT
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X main.version=0.36.0-security.1 -X main.commit=${SOURCE_COMMIT}" -o /out/trivy-operator ./cmd/trivy-operator
+
+FROM alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+RUN apk --no-cache upgrade && apk --no-cache add ca-certificates && adduser -u 10000 -D -g '' trivyoperator
+COPY --from=build /out/trivy-operator /usr/local/bin/trivy-operator
+USER 10000
+ENTRYPOINT ["trivy-operator"]

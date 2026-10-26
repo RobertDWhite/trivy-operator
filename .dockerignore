@@ -1,0 +1,6 @@
+.git
+dist
+.env
+.env.*
+*.log
+coverage*
