@@ -44,3 +44,11 @@ The TTL controller now registers ClusterVulnerabilityReport alongside namespace 
 Existing production namespace TTL behavior was exercised with a synthetic six-object partition set: all objects disappeared after10.43seconds with10s TTL. A second set with5m TTL and a synthetic ConfigMap owner disappeared after owner deletion (observed0.04seconds). Temporary namespace and cluster object removed. This proves namespace TTL/owner GC and API preconditions, not live candidate cluster watcher registration.
 
 Immediate obsolete-generation reclamation is not implemented: deleting by root/name alone could race a replacement writer. Current bounded cleanup relies on valid finite TTL/owner lifetimes; verify those configured bounds and retry behavior before candidate deployment. Parts without TTL and surviving owners are not automatically reclaimed.
+
+## Live severity fidelity regression
+
+The first full canary wrote19398findings in20APIobjects with valid partition checksums, but comparison against the actual scanner output rejected it: raw critical132/high2422/medium11612/low4426/unknown806 became stored critical73/high854/medium2985/low1834/unknown13652. The existing converter recomputed severity from VendorSeverity[SeveritySource], losing scanner-selected severities when the source was omitted.
+
+Conversion now preserves a valid Trivy-selected Severity, including explicit UNKNOWN; only legacy inputs without a valid selected severity fall back to the vendor map. Regression tests fail before/pass after and cover conflicting vendor values. The private full canary scan now passes exact per-severity count equality and lossless partition reconstruction (19398findings/140parts with optional enrichment enabled in that test; live default-field output previously used19parts plus manifest). Report/metrics/controller build-mode tests and report/metrics race checks pass.
+
+The first candidate was scaled to zero after full scan retention/checksum verification. Its successful object writes are not release acceptance. Rebuild/rescan the corrected image and repeat live severity/identity/metrics comparisons before promotion.
