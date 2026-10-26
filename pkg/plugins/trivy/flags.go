@@ -1,6 +1,8 @@
 package trivy
 
 import (
+	"strings"
+
 	"github.com/aquasecurity/go-version/pkg/semver"
 )
 
@@ -18,17 +20,22 @@ func compareTagVersion(currentTag, constraint string) bool {
 	return c.Check(v)
 }
 
-// Slow determine if to use the slow flag (improve memory footprint)
+// Slow selects the version-compatible flag to reduce scan memory usage.
 func Slow(c Config) string {
 	tag, err := c.GetImageTag()
 	if err != nil {
 		return ""
 	}
+	// A digest pin follows the version tag in immutable image references.
+	tag, _, _ = strings.Cut(tag, "@")
 	// support backward compatibility with older tags
 	if compareTagVersion(tag, "< 0.35.0") {
 		return ""
 	}
 	if c.GetSlow() {
+		if compareTagVersion(tag, ">= 0.76.0") {
+			return "--parallel=1"
+		}
 		return "--slow"
 	}
 	return ""

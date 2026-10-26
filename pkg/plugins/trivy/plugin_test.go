@@ -6338,7 +6338,7 @@ default ignore = false`,
 						},
 						Args: []string{
 							"-c",
-							"trivy image nginx:1.16 --cache-dir /tmp/trivy/.cache --format json --image-config-scanners secret --scanners vuln,secret --skip-db-update --slow --output /tmp/scan/result_nginx.json 2>/tmp/scan/result_nginx.json.log ; rc=$?; if [ $rc -eq 1 ]; then cat /tmp/scan/result_nginx.json.log; else cat /tmp/scan/result_nginx.json; fi; exit $rc",
+							"trivy image nginx:1.16 --cache-dir /tmp/trivy/.cache --format json --image-config-scanners secret --scanners vuln,secret --skip-db-update --parallel=1 --output /tmp/scan/result_nginx.json 2>/tmp/scan/result_nginx.json.log ; rc=$?; if [ $rc -eq 1 ]; then cat /tmp/scan/result_nginx.json.log; else cat /tmp/scan/result_nginx.json; fi; exit $rc",
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
@@ -6649,7 +6649,7 @@ default ignore = false`,
 						},
 						Args: []string{
 							"-c",
-							"trivy image nginx:1.16 --cache-dir /tmp/trivy/.cache --format json --image-config-scanners secret --scanners vuln,secret --skip-db-update --slow --config /etc/trivy/trivy-config.yaml --output /tmp/scan/result_nginx.json 2>/tmp/scan/result_nginx.json.log ; rc=$?; if [ $rc -eq 1 ]; then cat /tmp/scan/result_nginx.json.log; else bzip2 -c /tmp/scan/result_nginx.json | base64; fi; exit $rc",
+							"trivy image nginx:1.16 --cache-dir /tmp/trivy/.cache --format json --image-config-scanners secret --scanners vuln,secret --skip-db-update --parallel=1 --config /etc/trivy/trivy-config.yaml --output /tmp/scan/result_nginx.json 2>/tmp/scan/result_nginx.json.log ; rc=$?; if [ $rc -eq 1 ]; then cat /tmp/scan/result_nginx.json.log; else bzip2 -c /tmp/scan/result_nginx.json | base64; fi; exit $rc",
 						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{

@@ -199,3 +199,17 @@ func TestSkipJavaDBUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestSlowModernScanner(t *testing.T) {
+	for _, tc := range []struct{ tag, slow, want string }{
+		{"0.76.1", "true", "--parallel=1"},
+		{"0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c", "true", "--parallel=1"},
+		{"0.76.1", "false", ""},
+		{"0.75.0", "true", "--slow"},
+	} {
+		t.Run(tc.tag+"/"+tc.slow, func(t *testing.T) {
+			got := trivy.Slow(trivy.Config{PluginConfig: trivyoperator.PluginConfig{Data: map[string]string{"trivy.tag": tc.tag, "trivy.slow": tc.slow}}})
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
